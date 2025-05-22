@@ -28,3 +28,11 @@ flutterfire config \
   --android-package-name=com.forgehack.flavor_tutorial.dev \
   --android-out=android/app/src/dev/google-services.json
 ```
+
+環境ごとにビルドする。
+
+```shell
+flutter run --flavor dev -t lib/main_dev.dart
+flutter run --flavor staging -t lib/main_staging.dart
+flutter run --flavor prod -t lib/main_prod.dart
+```
