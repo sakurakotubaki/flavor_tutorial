@@ -8,6 +8,23 @@ String currentFlavor = 'unknown';
 // Firestore instance
 final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
+// Dart-define constants
+final String appName = const String.fromEnvironment('appName', defaultValue: 'Flavor Tutorial');
+final String appId = const String.fromEnvironment('appId', defaultValue: 'com.example.flavor_tutorial');
+final Color primaryColor = HexColor.fromHex(
+  const String.fromEnvironment('primaryColor', defaultValue: '#2196F3')
+);
+
+// HexColor extension for parsing color hex strings
+extension HexColor on Color {
+  static Color fromHex(String hexString) {
+    final buffer = StringBuffer();
+    if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+    buffer.write(hexString.replaceFirst('#', ''));
+    return Color(int.parse(buffer.toString(), radix: 16));
+  }
+}
+
 // Main function that takes FirebaseOptions and runs the app
 Future<void> mainCommon(FirebaseOptions options, {required String flavor}) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +34,9 @@ Future<void> mainCommon(FirebaseOptions options, {required String flavor}) async
   
   // Debug info to help diagnose flavor issues
   debugPrint('✨✨✨ FLAVOR SET TO: $currentFlavor ✨✨✨');
+  debugPrint('✨✨✨ APP NAME: $appName ✨✨✨');
+  debugPrint('✨✨✨ APP ID: $appId ✨✨✨');
+  debugPrint('✨✨✨ PRIMARY COLOR: ${primaryColor.toString()} ✨✨✨');
   
   // Initialize Firebase with the provided options
   try {
