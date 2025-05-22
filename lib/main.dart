@@ -1,36 +1,74 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-void main() {
+// Global variable to identify the current flavor
+String currentFlavor = 'unknown';
+
+// Firestore instance
+final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+// Main function that takes FirebaseOptions and runs the app
+Future<void> mainCommon(FirebaseOptions options, {required String flavor}) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Set the current flavor
+  currentFlavor = flavor;
+  
+  // Debug info to help diagnose flavor issues
+  debugPrint('✨✨✨ FLAVOR SET TO: $currentFlavor ✨✨✨');
+  
+  // Initialize Firebase with the provided options
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: options);
+    } else {
+      Firebase.app(); // If already initialized, use the default app
+    }
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
+  
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    // Get app name based on which entry point file was used
+    String appName = 'Flutter Demo';
+    
+    // Set different colors for each flavor to make it visually distinctive
+    Color seedColor;
+    String flavorLabel;
+    
+    // Use the currentFlavor global variable to determine the UI styling
+    switch (currentFlavor) {
+      case 'dev':
+        seedColor = Colors.blue;
+        flavorLabel = '[DEV]';
+        break;
+      case 'staging':
+        seedColor = Colors.amber;
+        flavorLabel = '[STAGING]';
+        break;
+      case 'prod':
+        seedColor = Colors.green;
+        flavorLabel = '[PROD]';
+        break;
+      default:
+        seedColor = Colors.deepPurple;
+        flavorLabel = '';
+    }
+    
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: '$appName $flavorLabel',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(title: '$appName $flavorLabel'),
     );
   }
 }
@@ -55,6 +93,9 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  
+  // Reference to the users collection
+  final CollectionReference usersCollection = FirebaseFirestore.instance.collection('users');
 
   void _incrementCounter() {
     setState(() {
@@ -104,18 +145,182 @@ class _MyHomePageState extends State<MyHomePage> {
           // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            // Display the current flavor
+            Text(
+              'Current Flavor: ${currentFlavor.toUpperCase()}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text('You have pushed the button this many times:'),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            const SizedBox(height: 30),
+            // Show UI based on the current flavor
+            ...switch (currentFlavor) {
+              'dev' || 'staging' => [
+                Text(
+                  'Users from Firestore (${currentFlavor.toUpperCase()}):',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              const SizedBox(height: 10),
+              // StreamBuilder to display users from Firestore
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: usersCollection.snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text('No users found'));
+                    }
+                    
+                    // Display the list of users
+                    return ListView.builder(
+                      itemCount: snapshot.data!.docs.length,
+                      itemBuilder: (context, index) {
+                        final doc = snapshot.data!.docs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final name = data['name'] ?? 'No name';
+                        
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            child: Text(name.substring(0, 1).toUpperCase()),
+                          ),
+                          title: Text(name),
+                          subtitle: Text('User ID: ${doc.id}'),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+              'prod' => [
+                const SizedBox(height: 10),
+                const Text(
+                  'This is the production environment.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Icon(
+                  Icons.verified,
+                  color: Colors.green,
+                  size: 48,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Firestore access is restricted in production.',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: usersCollection.snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text('No users found'));
+                    }
+                    
+                    // Display the list of users
+                    return ListView.builder(
+                      itemCount: snapshot.data!.docs.length,
+                      itemBuilder: (context, index) {
+                        final doc = snapshot.data!.docs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final name = data['name'] ?? 'No name';
+                        
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            child: Text(name.substring(0, 1).toUpperCase()),
+                          ),
+                          title: Text(name),
+                          subtitle: Text('User ID: ${doc.id}'),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              ],
+              _ => [] // Default case for any other flavor
+            },
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Show different buttons based on the flavor
+          ...switch (currentFlavor) {
+            'dev' || 'staging' => [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: FloatingActionButton(
+                  onPressed: () async {
+                    // Add a new user to Firestore with a random name
+                    try {
+                      final timestamp = DateTime.now().millisecondsSinceEpoch;
+                      await usersCollection.add({
+                        'name': 'Test User $timestamp ${currentFlavor.toUpperCase()}',
+                        'createdAt': FieldValue.serverTimestamp(),
+                        'environment': currentFlavor,
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('User added successfully')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error adding user: $e')),
+                        );
+                      }
+                    }
+                  },
+                  heroTag: 'addUser',
+                  backgroundColor: currentFlavor == 'dev' ? Colors.green : Colors.orange,
+                  child: const Icon(Icons.person_add),
+                ),
+              ),
+            ],
+            _ => [] // Empty list for prod and other flavors
+          },
+          // This button is always shown regardless of flavor
+          FloatingActionButton(
+            onPressed: _incrementCounter,
+            tooltip: 'Increment',
+            heroTag: 'increment',
+            child: const Icon(Icons.add),
+          ),
+        ],
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
